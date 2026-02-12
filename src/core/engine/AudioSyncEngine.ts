@@ -51,40 +51,35 @@ export class AudioSyncEngine implements IAudioSyncEngine, IClipEngine {
     return null;
   }
 
-  // Feature: Clip Context (30s buffer) - O(log n + k)
+ // Feature: Clip Context (15s back + 15s forward = 30s Total)
   public createClip(currentTime: number, textSource: ITextSource): AudioHighlight {
     if (!this.currentChapter) throw new ChapterNotLoadedError();
 
-    const rangeStart = Math.max(0, currentTime - 30);
-    const rangeEnd = currentTime + 30;
+    // AJUSTE: Buffer reduzido para 15 segundos
+    const rangeStart = Math.max(0, currentTime - 15);
+    const rangeEnd = currentTime + 15;
 
     // OTIMIZAÇÃO: Usa Busca Binária para achar onde começar a ler
-    // Em vez de varrer o array do zero, pulamos direto para o tempo certo.
     const startIndex = this.findFirstIndexWhereEndGreaterOrEqual(rangeStart);
 
     const relevantPairs: SyncPair[] = [];
-    const elementIds: string[] = [];
     
     if (startIndex !== -1) {
       for (let i = startIndex; i < this.currentChapter.timeline.length; i++) {
         const pair = this.currentChapter.timeline[i];
         
-        // Se o par começa DEPOIS do nosso range, paramos.
-        // (Vantagem da lista ordenada)
         if (pair.start > rangeEnd) break;
 
         relevantPairs.push(pair);
-        elementIds.push(pair.elementId);
       }
     }
 
-    // Extrai texto usando a Porta (Sem acoplar ao DOM)
     const textSegments = relevantPairs
       .map((p) => textSource.getTextById(p.elementId))
       .filter((t): t is string => t !== null && t.trim().length > 0);
 
-    // Formatação Markdown para Obsidian
-    const contextLabel = currentTime < 30
+    // AJUSTE: Lógica do label visual também muda de 30 para 15
+    const contextLabel = currentTime < 15
       ? `Chapter start - ${this.formatTime(rangeEnd)}`
       : `${this.formatTime(rangeStart)} - ${this.formatTime(rangeEnd)}`;
 
